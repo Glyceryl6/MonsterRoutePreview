@@ -1,62 +1,59 @@
-#nullable enable
 using System;
 using System.Globalization;
 using FairyGUI;
 using UI;
-using UnityEngine;
 
 namespace MonsterRoutePreview {
     internal sealed partial class MonsterRoutePreviewService {
-        private GComponent? _captionLayer;
-        private GRoot? _captionRoot;
+        private GTextField? _captionAnchor;
 
         private void ShowCaption(UIBattleInfoPanel parent, int initial) {
-            GRoot root = GRoot.inst;
             GTextField? anchor = parent.txt_DicePoint;
-            if (anchor == null || !parent.onStage) { HideCaption(); return; }
-            if (_captionParent != parent || _caption == null || _caption.isDisposed ||
-                _captionLayer == null || _captionLayer.isDisposed || _captionRoot != root) {
+            if (anchor == null || anchor.isDisposed || !parent.onStage ||
+                (parent.showDicePoint != null && parent.showDicePoint.playing)) {
                 HideCaption();
-                _captionRoot = root;
-                _captionLayer = new GComponent { touchable = false, opaque = false, sortingOrder = 29000 };
-                _captionLayer.SetSize(root.width, root.height);
-                root.AddChild(_captionLayer);
-                _caption = new GTextField {
-                    autoSize = AutoSizeType.None, touchable = false, singleLine = true,
-                    align = AlignType.Center, verticalAlign = VertAlignType.Middle
-                };
-                TextFormat format = _caption.textFormat;
-                format.CopyFrom(anchor.textFormat);
-                // The legacy mod displayed only the initial dice total, using
-                // the native counter's unscaled font size (not a tiny label).
-                format.size = Math.Max(38, format.size);
-                _caption.textFormat = format;
-                // TextFormat.CopyFrom does not copy effects such as text outlines.
-                _caption.stroke = anchor.stroke;
-                _caption.strokeColor = anchor.strokeColor;
-                _caption.SetSize(Math.Max(1f, root.width - 24f), Math.Max(64f, anchor.height));
-                _captionLayer.AddChild(_caption);
-                _captionParent = parent;
+                return;
             }
-            _captionLayer.SetSize(root.width, root.height);
-            _caption.SetSize(Math.Max(1f, root.width - 24f), Math.Max(64f, anchor.height));
+
+            // Keep the label inside the native battle HUD. Its visibility and
+            // position now follow that HUD when a fight overlay opens or the
+            // scene changes; a separate GRoot overlay leaked above fights.
+            if (_captionParent != parent || _captionAnchor != anchor ||
+                _caption == null || _caption.isDisposed || _caption.parent != parent) {
+                HideCaption();
+                _captionParent = parent;
+                _captionAnchor = anchor;
+                _caption = new GTextField {
+                    name = "AstralProbe.MonsterMoveCount",
+                    autoSize = AutoSizeType.None,
+                    touchable = false,
+                    singleLine = true,
+                    align = AlignType.Center,
+                    verticalAlign = anchor.verticalAlign
+                };
+                // The original counter supplies the font face, size and color.
+                // Do not enlarge it or add a second fuzzy black stroke.
+                TextFormat native = _caption.textFormat;
+                native.CopyFrom(anchor.textFormat);
+                _caption.textFormat = native;
+                _caption.stroke = 0;
+                _caption.sortingOrder = anchor.sortingOrder + 1;
+                parent.AddChild(_caption);
+            }
+            _caption.SetSize(Math.Max(1f, anchor.width), Math.Max(1f, anchor.height));
+            _caption.SetXY(anchor.x, anchor.y);
             _caption.text = initial.ToString(CultureInfo.InvariantCulture);
-            Vector2 center = root.GlobalToLocal(anchor.LocalToGlobal(new Vector2(
-                anchor.width * .5f, anchor.height * .5f)));
-            // The native dice label supplies the location and typographic style;
-            // the overlay is above its transient animation and the tips window.
-            _caption.SetXY(center.x - _caption.width * .5f, center.y - _caption.height * .5f);
+            _caption.visible = true;
         }
 
         private void HideCaption() {
-            if (_captionLayer != null && !_captionLayer.isDisposed) {
-                _captionLayer.RemoveFromParent();
-                _captionLayer.Dispose();
+            if (_caption != null && !_caption.isDisposed) {
+                _caption.RemoveFromParent();
+                _caption.Dispose();
             }
-            _captionLayer = null;
             _caption = null;
             _captionParent = null;
-            _captionRoot = null;
+            _captionAnchor = null;
         }
     }
 }

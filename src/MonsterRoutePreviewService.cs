@@ -1,8 +1,8 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using CesiumLoader.SDK.Logging;
 using Core;
+using Core.Scene;
 using Core.Unit;
 using FairyGUI;
 using GameLogic;
@@ -29,10 +29,14 @@ namespace MonsterRoutePreview {
 
         internal void Tick() {
             if (DateTime.UtcNow < _next) return;
-            _next = DateTime.UtcNow.AddMilliseconds(60);
+            // Check quickly while the first actor and map resources are becoming ready.
+            _next = DateTime.UtcNow.AddMilliseconds(_planned ? 65 : 20);
             try {
-                if (!GameLogicManager.hasInstance ||
-                    (UIManager.hasInstance && UIManager.inst.currentPanel is BattleSettlementPanel)) { Clear(); return; }
+                if (!GameLogicManager.hasInstance || !SceneManager.hasInstance ||
+                    SceneManager.inst.currentType.Value != SceneType.Battle ||
+                    (UIManager.hasInstance &&
+                     (UIManager.inst.currentPanel is BattleSettlementPanel ||
+                      UIManager.inst.Fight.isShowing))) { Clear(); return; }
                 BattleLogic battle = GameLogicManager.inst.battle;
                 BattlePlayerData? actor = battle?.GetCurrentPlayer();
                 if (battle == null || actor == null || actor.characterType != CharacterType.Monster ||
@@ -60,24 +64,26 @@ namespace MonsterRoutePreview {
 
                 // The first Addressables load can fail while the battle scene is
                 // warming up. Retry a failed batch only while still at its origin.
-                if (_planned && _pendingRoads == 0 && _readyRoads == 0 && _failedRoads > 0 &&
-                    _retryCount < MonsterRoutePreviewService.MaxLoadRetries && origin == _origin) {
+                if (_planned && _pendingRoads == 0 && _readyRoads == 0 &&
+                    _retryCount < MaxLoadRetries &&
+                    (_failedRoads > 0 || origin != _origin)) {
                     _retryCount++;
                     RetireRoads();
                     _planned = false;
                     _nextPlanAttempt = DateTime.UtcNow.AddMilliseconds(350);
                 }
                 if (origin < 0 || _planned || DateTime.UtcNow < _nextPlanAttempt) return;
-                // Keep the first route set for the full monster action. Rebuilding
-                // after each movement tile destroys asynchronous Addressables
-                // instances before they have time to become visible.
-                if (BuildRoads(origin, character.fromLandId, initialSteps)) {
+                // Prefer the first full movement budget, but a cold first-load
+                // retry after the monster has already stepped must start from
+                // its CURRENT tile and remaining movement points.
+                int stepsToPreview = _retryCount > 0 ? character.canStep : initialSteps;
+                if (BuildRoads(origin, character.fromLandId, stepsToPreview)) {
                     _origin = origin;
                     _planned = true;
                 } else {
                     // SceneUI and LandManager often become ready *after* the
                     // first actor is already active. Check again promptly.
-                    _nextPlanAttempt = DateTime.UtcNow.AddMilliseconds(180);
+                    _nextPlanAttempt = DateTime.UtcNow.AddMilliseconds(120);
                 }
             } catch (Exception ex) {
                 Clear();

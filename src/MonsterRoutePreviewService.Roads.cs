@@ -9,8 +9,11 @@ using UnityEngine;
 namespace MonsterRoutePreview {
     internal sealed partial class MonsterRoutePreviewService {
         private readonly List<StopEffectData> _stops = new List<StopEffectData>();
+        // A cold scene may need to load effect 2001 for the very first monster.
+        // Start one route at a time, rather than racing 24 Addressables loads.
+        private readonly Queue<RoadLineData> _queuedRoads = new Queue<RoadLineData>();
         private const int MaxStopEffects = 16;
-        private const int MaxLoadRetries = 2;
+        private const int MaxLoadRetries = 6;
         private int _pendingRoads;
         private int _readyRoads;
         private int _failedRoads;
@@ -40,10 +43,10 @@ namespace MonsterRoutePreview {
                 if (path.Count < 2) continue;
                 var road = new RoadLineData(path, null, Math.Max(0, totalSteps - (path.Count - 1)));
                 started++;
-                _pendingRoads++;
-                StartRoad(road, generation);
+                _queuedRoads.Enqueue(road);
             }
             if (started == 0) return false;
+            StartNextRoad(generation);
             int stops = 0;
             foreach (int terminal in plan.Terminals) {
                 if (stops >= MaxStopEffects) break;
@@ -54,6 +57,13 @@ namespace MonsterRoutePreview {
                 " 条，落点 " + stops + " 个，预览步数 " + plan.StepsShown +
                 (plan.Truncated ? "（剩余步数超过预览上限）" : ""));
             return true;
+        }
+
+        private void StartNextRoad(int generation) {
+            if (generation != _generation || _queuedRoads.Count == 0) return;
+            RoadLineData next = _queuedRoads.Dequeue();
+            _pendingRoads++;
+            StartRoad(next, generation);
         }
 
         // Use the game's UniTask awaiter directly; no UniTaskVoid async state
@@ -73,6 +83,7 @@ namespace MonsterRoutePreview {
                 }
                 WarnRoad(ex.Message);
                 SafeDestroy(road);
+                StartNextRoad(generation);
             }
         }
 
@@ -84,6 +95,7 @@ namespace MonsterRoutePreview {
                     if (ready) {
                         _readyRoads++;
                         _roads.Add(road);
+                        StartNextRoad(generation);
                         return;
                     }
                     _failedRoads++;
@@ -99,6 +111,7 @@ namespace MonsterRoutePreview {
             // Generation guards protect late Addressables completions after
             // turning the feature off or unloading the scene.
             SafeDestroy(road);
+            StartNextRoad(generation);
         }
 
         private void StartStop(StopEffectData stop, int totalSteps, int generation) {
@@ -134,7 +147,7 @@ namespace MonsterRoutePreview {
         private void WarnRoad(string message) {
             if (DateTime.UtcNow < _warnAt) return;
             _warnAt = DateTime.UtcNow.AddSeconds(30);
-            SdkLog.Warn("怪物路线显示", "怪物地图路线渲染失败：" + message);
+            SdkLog.Warn("AstralProbe", "怪物地图路线渲染失败：" + message);
         }
 
         private static void SafeDestroy(RoadLineData road) {
@@ -151,6 +164,7 @@ namespace MonsterRoutePreview {
             for (int i = 0; i < _stops.Count; i++) SafeDestroy(_stops[i]);
             _roads.Clear();
             _stops.Clear();
+            _queuedRoads.Clear();
             _pendingRoads = 0;
             _readyRoads = 0;
             _failedRoads = 0;
