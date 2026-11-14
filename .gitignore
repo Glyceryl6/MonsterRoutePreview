@@ -1,0 +1,13 @@
+# IDE / build outputs
+.idea/
+.vs/
+.vscode/
+bin/
+obj/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.pdb
+*.cache
+refs/
