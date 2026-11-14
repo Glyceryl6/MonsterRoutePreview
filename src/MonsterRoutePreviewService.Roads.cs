@@ -12,6 +12,9 @@ namespace MonsterRoutePreview {
         // A cold scene may need to load effect 2001 for the very first monster.
         // Start one route at a time, rather than racing 24 Addressables loads.
         private readonly Queue<RoadLineData> _queuedRoads = new Queue<RoadLineData>();
+        private readonly Queue<StopEffectData> _queuedStops = new Queue<StopEffectData>();
+        private int _stopBudget;
+        private DateTime _roadStartedAt;
         private const int MaxStopEffects = 16;
         private const int MaxLoadRetries = 6;
         private int _pendingRoads;
@@ -46,13 +49,17 @@ namespace MonsterRoutePreview {
                 _queuedRoads.Enqueue(road);
             }
             if (started == 0) return false;
-            StartNextRoad(generation);
+            // Load the road resource first. Starting all stop effects alongside
+            // the first Addressables request could starve the first monster.
             int stops = 0;
+            _stopBudget = totalSteps;
             foreach (int terminal in plan.Terminals) {
                 if (stops >= MaxStopEffects) break;
-                StartStop(new StopEffectData(terminal), totalSteps, generation);
+                _queuedStops.Enqueue(new StopEffectData(terminal));
                 stops++;
             }
+            _roadStartedAt = DateTime.UtcNow;
+            StartNextRoad(generation);
             SdkLog.Info("怪物路线显示", "怪物路线已规划：" + plan.Paths.Count +
                 " 条，落点 " + stops + " 个，预览步数 " + plan.StepsShown +
                 (plan.Truncated ? "（剩余步数超过预览上限）" : ""));
@@ -95,6 +102,9 @@ namespace MonsterRoutePreview {
                     if (ready) {
                         _readyRoads++;
                         _roads.Add(road);
+                        // As soon as one road exists, its terminal effects may
+                        // load without blocking the actual movement line.
+                        if (_readyRoads == 1) StartQueuedStops(generation);
                         StartNextRoad(generation);
                         return;
                     }
@@ -112,6 +122,12 @@ namespace MonsterRoutePreview {
             // turning the feature off or unloading the scene.
             SafeDestroy(road);
             StartNextRoad(generation);
+        }
+
+        private void StartQueuedStops(int generation) {
+            if (generation != _generation) return;
+            while (_queuedStops.Count > 0)
+                StartStop(_queuedStops.Dequeue(), _stopBudget, generation);
         }
 
         private void StartStop(StopEffectData stop, int totalSteps, int generation) {
@@ -147,7 +163,7 @@ namespace MonsterRoutePreview {
         private void WarnRoad(string message) {
             if (DateTime.UtcNow < _warnAt) return;
             _warnAt = DateTime.UtcNow.AddSeconds(30);
-            SdkLog.Warn("AstralProbe", "怪物地图路线渲染失败：" + message);
+            SdkLog.Warn("MonsterRoutePreview", "怪物地图路线渲染失败：" + message);
         }
 
         private static void SafeDestroy(RoadLineData road) {
@@ -165,6 +181,8 @@ namespace MonsterRoutePreview {
             _roads.Clear();
             _stops.Clear();
             _queuedRoads.Clear();
+            _queuedStops.Clear();
+            _stopBudget = 0;
             _pendingRoads = 0;
             _readyRoads = 0;
             _failedRoads = 0;
