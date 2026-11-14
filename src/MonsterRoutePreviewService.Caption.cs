@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Globalization;
 using FairyGUI;
 using UI;
 using UnityEngine;
@@ -9,7 +10,7 @@ namespace MonsterRoutePreview {
         private GComponent? _captionLayer;
         private GRoot? _captionRoot;
 
-        private void ShowCaption(UIBattleInfoPanel parent, int initial, int remaining) {
+        private void ShowCaption(UIBattleInfoPanel parent, int initial) {
             GRoot root = GRoot.inst;
             GTextField? anchor = parent.txt_DicePoint;
             if (anchor == null || !parent.onStage) { HideCaption(); return; }
@@ -26,17 +27,20 @@ namespace MonsterRoutePreview {
                 };
                 TextFormat format = _caption.textFormat;
                 format.CopyFrom(anchor.textFormat);
-                format.size = Math.Min(25, Math.Max(14, format.size));
+                // The legacy mod displayed only the initial dice total, using
+                // the native counter's unscaled font size (not a tiny label).
+                format.size = Math.Max(38, format.size);
                 _caption.textFormat = format;
                 // TextFormat.CopyFrom does not copy effects such as text outlines.
                 _caption.stroke = anchor.stroke;
                 _caption.strokeColor = anchor.strokeColor;
-                _caption.SetSize(270f, Math.Max(28f, anchor.height));
+                _caption.SetSize(Math.Max(1f, root.width - 24f), Math.Max(64f, anchor.height));
                 _captionLayer.AddChild(_caption);
                 _captionParent = parent;
             }
             _captionLayer.SetSize(root.width, root.height);
-            _caption.text = initial.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _caption.SetSize(Math.Max(1f, root.width - 24f), Math.Max(64f, anchor.height));
+            _caption.text = initial.ToString(CultureInfo.InvariantCulture);
             Vector2 center = root.GlobalToLocal(anchor.LocalToGlobal(new Vector2(
                 anchor.width * .5f, anchor.height * .5f)));
             // The native dice label supplies the location and typographic style;

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using CesiumLoader.SDK.Logging;
 using Core;
 using Core.Scene;
@@ -9,12 +8,19 @@ using UnityEngine;
 
 namespace MonsterRoutePreview {
     internal sealed partial class MonsterRoutePreviewService {
-        private readonly List<StopEffectData> _stops = new();
+        private readonly List<StopEffectData> _stops = new List<StopEffectData>();
         private const int MaxStopEffects = 16;
+        private const int MaxLoadRetries = 2;
+        private int _pendingRoads;
+        private int _readyRoads;
+        private int _failedRoads;
+        private int _retryCount;
         private DateTime _nextPlanAttempt;
 
         private bool BuildRoads(int origin, int previous, int totalSteps) {
-            if (!LandManager.hasInstance || BattleSceneController.inst.SceneUI == null || totalSteps <= 0) return false;
+            if (!LandManager.hasInstance || BattleSceneController.inst == null ||
+                BattleSceneController.inst.SceneUI == null || totalSteps <= 0) return false;
+
             // Read-only path generation: do not call RoadLineManager.GeneratePath,
             // as it also owns the player's selectable roads and landing controls.
             MonsterRoutePlanner.Preview plan = MonsterRoutePlanner.Build(origin, previous, totalSteps,
@@ -28,16 +34,23 @@ namespace MonsterRoutePreview {
             }
 
             int generation = _generation;
-            foreach (var road in from path in plan.Paths where path.Count >= 2 select new RoadLineData(path, null, Math.Max(0, totalSteps - (path.Count - 1)))) {
+            int started = 0;
+            for (int i = 0; i < plan.Paths.Count; i++) {
+                List<int> path = plan.Paths[i];
+                if (path.Count < 2) continue;
+                var road = new RoadLineData(path, null, Math.Max(0, totalSteps - (path.Count - 1)));
+                started++;
+                _pendingRoads++;
                 StartRoad(road, generation);
             }
+            if (started == 0) return false;
             int stops = 0;
             foreach (int terminal in plan.Terminals) {
                 if (stops >= MaxStopEffects) break;
                 StartStop(new StopEffectData(terminal), totalSteps, generation);
                 stops++;
             }
-            SdkLog.Info("MonsterRoutePreview", "怪物路线已规划：" + plan.Paths.Count +
+            SdkLog.Info("怪物路线显示", "怪物路线已规划：" + plan.Paths.Count +
                 " 条，落点 " + stops + " 个，预览步数 " + plan.StepsShown +
                 (plan.Truncated ? "（剩余步数超过预览上限）" : ""));
             return true;
@@ -47,13 +60,17 @@ namespace MonsterRoutePreview {
         // machine is emitted by the mod and no native pointer hook is needed.
         private void StartRoad(RoadLineData road, int generation) {
             try {
-                var awaiter = road.InstantiateRoad(new Color(1f, .12f, .08f, 1f)).GetAwaiter();
+                var awaiter = road.InstantiateRoad(new Color(1.73f, 0f, .027f, 1f)).GetAwaiter();
                 if (awaiter.IsCompleted) {
-                    CompleteRoad(road, generation, awaiter.GetResult);
+                    CompleteRoad(road, generation, () => awaiter.GetResult());
                 } else {
                     awaiter.OnCompleted(() => CompleteRoad(road, generation, () => awaiter.GetResult()));
                 }
             } catch (Exception ex) {
+                if (generation == _generation) {
+                    _pendingRoads = Math.Max(0, _pendingRoads - 1);
+                    _failedRoads++;
+                }
                 WarnRoad(ex.Message);
                 SafeDestroy(road);
             }
@@ -62,15 +79,21 @@ namespace MonsterRoutePreview {
         private void CompleteRoad(RoadLineData road, int generation, Func<bool> complete) {
             try {
                 bool ready = complete();
-                switch (ready) {
-                    case true when generation == _generation:
+                if (generation == _generation) {
+                    _pendingRoads = Math.Max(0, _pendingRoads - 1);
+                    if (ready) {
+                        _readyRoads++;
                         _roads.Add(road);
                         return;
-                    case false when generation == _generation:
-                        WarnRoad("原版道路资源未能创建，请检查特效资源 2001");
-                        break;
+                    }
+                    _failedRoads++;
+                    WarnRoad("原版道路资源尚未创建（特效 2001），本回合将按需重试");
                 }
             } catch (Exception ex) {
+                if (generation == _generation) {
+                    _pendingRoads = Math.Max(0, _pendingRoads - 1);
+                    _failedRoads++;
+                }
                 WarnRoad(ex.Message);
             }
             // Generation guards protect late Addressables completions after
@@ -85,7 +108,7 @@ namespace MonsterRoutePreview {
                 // callback for a monster turn (the current player is not self).
                 var awaiter = stop.CreateEffect(0, totalSteps).GetAwaiter();
                 if (awaiter.IsCompleted) {
-                    CompleteStop(stop, generation, awaiter.GetResult);
+                    CompleteStop(stop, generation, () => awaiter.GetResult());
                 } else {
                     awaiter.OnCompleted(() => CompleteStop(stop, generation, () => awaiter.GetResult()));
                 }
@@ -111,37 +134,27 @@ namespace MonsterRoutePreview {
         private void WarnRoad(string message) {
             if (DateTime.UtcNow < _warnAt) return;
             _warnAt = DateTime.UtcNow.AddSeconds(30);
-            SdkLog.Warn("MonsterRoutePreview", "怪物地图路线渲染失败：" + message);
+            SdkLog.Warn("怪物路线显示", "怪物地图路线渲染失败：" + message);
         }
 
         private static void SafeDestroy(RoadLineData road) {
-            try { road.DestroyRoadLine(); } catch (Exception) {
-                // ignored
-            }
+            try { road.DestroyRoadLine(); } catch (Exception) { }
         }
 
         private static void SafeDestroy(StopEffectData stop) {
-            try { stop.DestroyEffect(); } catch (Exception) {
-                // ignored
-            }
+            try { stop.DestroyEffect(); } catch (Exception) { }
         }
 
         private void RetireRoads() {
             _generation++;
-            foreach (var t in _roads)
-                SafeDestroy(t);
-
-            foreach (var t in _stops)
-                SafeDestroy(t);
-
+            for (int i = 0; i < _roads.Count; i++) SafeDestroy(_roads[i]);
+            for (int i = 0; i < _stops.Count; i++) SafeDestroy(_stops[i]);
             _roads.Clear();
             _stops.Clear();
+            _pendingRoads = 0;
+            _readyRoads = 0;
+            _failedRoads = 0;
         }
 
-        internal void HideRoutes() {
-            RetireRoads();
-            _planned = false;
-            _origin = 0;
-        }
     }
 }
