@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>MonsterRoutePreview</AssemblyName>
+    <RootNamespace>MonsterRoutePreview</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>refs\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>refs\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- CesiumLoader.SDK: apcsm new 已附带在 refs\ -->
+    <Reference Include="CesiumLoader.SDK">
+      <HintPath>refs\CesiumLoader.SDK.dll</HintPath>
+    </Reference>
+    <!-- 游戏热更程序集(可选): mod 直接用游戏类型时, 把 DLL 放到 refs\ 即可自动引用 -->
+    <Reference Include="AstralParty.Runtime">
+      <HintPath>refs\AstralParty.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UniTask">
+      <HintPath>refs\UniTask.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Google.Protobuf.Runtime">
+      <HintPath>refs\Google.Protobuf.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="FairyGUI" Condition="Exists('$(GameRefsDir)FairyGUI.dll')">
+      <HintPath>$(GameRefsDir)FairyGUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- These are compile-only type-forwarding dependencies for users whose
+     refs/game snapshot contains Il2CppInterop-generated proxy metadata.
+     They are NOT published, loaded or bundled by AstralProbe. A pure
+     HybridCLR ref set does not need them. Never mix versions. -->
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>refs\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>refs\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
