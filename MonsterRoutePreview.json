@@ -1,1 +1,1 @@
-{"id":"MonsterRoutePreview","name":"MonsterRoutePreview","version":"1.0.0","author":"Glyceryl6","description":"在对局中可以看到怪物的移动步数和行走路线","permissions":1,"sdkVersion":"3.5.2","dependencies":[]}
+{"id":"MonsterRoutePreview","name":"怪物路线显示","version":"1.0.1","author":"Glyceryl6","description":"在对局中可以看到怪物的移动步数和行走路线","permissions":1,"sdkVersion":"3.5.2","dependencies":[]}

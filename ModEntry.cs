@@ -7,7 +7,7 @@ namespace MonsterRoutePreview {
         
         public static void Main() {
             SdkManifest.ExportSidecar();
-            ModBase.Run(new MonsterRoutePreview(), tag: "MonsterRoutePreview");
+            ModBase.Run(new MonsterRoutePreview());
         }
         
     }

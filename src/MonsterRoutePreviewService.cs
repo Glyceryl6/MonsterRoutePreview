@@ -15,7 +15,7 @@ namespace MonsterRoutePreview {
     /// is changed.
     /// </summary>
     internal sealed partial class MonsterRoutePreviewService : IDisposable {
-        private readonly List<RoadLineData> _roads = new List<RoadLineData>();
+        private readonly List<RoadLineData> _roads = new();
         private BattleLogic? _battle;
         private Character? _character;
         private long _actor;
@@ -27,11 +27,7 @@ namespace MonsterRoutePreview {
         private DateTime _warnAt;
         private bool _planned;
 
-        internal bool Enabled { get; set; }
-        internal bool ShowRouteLines { get; set; }
-
         internal void Tick() {
-            if (!Enabled) { Clear(); return; }
             if (DateTime.UtcNow < _next) return;
             _next = DateTime.UtcNow.AddMilliseconds(60);
             try {
@@ -58,7 +54,7 @@ namespace MonsterRoutePreview {
                 int initialSteps = MonsterInitialSteps.Capture(battle, actor.player.Id,
                     character, character.canStep);
                 ShowCaption(battle.battleInfo.UIObject, initialSteps, character.canStep);
-                if (origin < 0 || !ShowRouteLines || _planned || DateTime.UtcNow < _nextPlanAttempt) return;
+                if (origin < 0 || _planned || DateTime.UtcNow < _nextPlanAttempt) return;
                 // Keep the first route set for the full monster action. Rebuilding
                 // after each movement tile destroys asynchronous Addressables
                 // instances before they have time to become visible.
@@ -69,7 +65,7 @@ namespace MonsterRoutePreview {
                 Clear();
                 if (DateTime.UtcNow >= _warnAt) {
                     _warnAt = DateTime.UtcNow.AddSeconds(30);
-                    SdkLog.Warn("AstralProbe", "怪物路线预览暂不可用：" + ex.Message);
+                    SdkLog.Warn("怪物路线显示", "怪物路线预览暂不可用：" + ex.Message);
                 }
             }
         }

@@ -63,7 +63,7 @@ namespace MonsterRoutePreview {
             try {
                 bool ready = complete();
                 switch (ready) {
-                    case true when generation == _generation && Enabled && ShowRouteLines:
+                    case true when generation == _generation:
                         _roads.Add(road);
                         return;
                     case false when generation == _generation:
@@ -98,7 +98,7 @@ namespace MonsterRoutePreview {
         private void CompleteStop(StopEffectData stop, int generation, Action complete) {
             try {
                 complete();
-                if (generation == _generation && Enabled && ShowRouteLines) {
+                if (generation == _generation) {
                     _stops.Add(stop);
                     return;
                 }

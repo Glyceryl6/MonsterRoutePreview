@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using FairyGUI;
 using UI;
@@ -35,7 +36,7 @@ namespace MonsterRoutePreview {
                 _captionParent = parent;
             }
             _captionLayer.SetSize(root.width, root.height);
-            _caption.text = "怪物移动  " + remaining + " / " + initial + " 步";
+            _caption.text = initial.ToString(System.Globalization.CultureInfo.InvariantCulture);
             Vector2 center = root.GlobalToLocal(anchor.LocalToGlobal(new Vector2(
                 anchor.width * .5f, anchor.height * .5f)));
             // The native dice label supplies the location and typographic style;
