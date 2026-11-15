@@ -2,8 +2,8 @@ using CesiumLoader.SDK.Manifests;
 
 [assembly: ModManifest(
     "怪物路线显示",
-    "1.0.6",
+    "1.0.7",
     "Glyceryl6",
-    "在对局中可以看到怪物的移动步数和行走路线",
+    "显示怪物移动步数与行走路线，沿用原版步数文字的字体和完整描边效果。",
     Permissions = ModPermission.ReadGameState,
-    SdkVersion = "3.5.2")]
+    SdkVersion = "3.8.3")]

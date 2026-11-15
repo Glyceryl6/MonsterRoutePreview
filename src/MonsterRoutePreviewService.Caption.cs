@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Globalization;
+using System.Reflection;
 using FairyGUI;
 using UI;
 using UnityEngine;
@@ -56,9 +57,7 @@ namespace MonsterRoutePreview {
                 TextFormat native = _caption.textFormat;
                 native.CopyFrom(anchor.textFormat);
                 _caption.textFormat = native;
-                // Preserve the exact authored font name: the game's outlined
-                // numbers are hand-painted bitmap glyphs, not a runtime stroke.
-                // A substitute outline changes their shape and glyph coverage.
+                // Copy both the native font and all of its SDF/effect fields.
                 CopyNativeTypography(_caption, anchor);
                 _captionLayer.AddChild(_caption);
             }
@@ -91,14 +90,34 @@ namespace MonsterRoutePreview {
         }
 
         private static void CopyNativeTypography(GTextField caption, GTextField source) {
-            TextFormat format = caption.textFormat;
-            format.CopyFrom(source.textFormat);
-            // Reuse the glyph font referenced by the game's original counter,
-            // including the packaged hand-painted bitmap font. FairyGUI's
-            // runtime stroke/shadow would paint a second, coarse black rim.
-            caption.textFormat = format;
-            caption.stroke = 0;
-            caption.shadowOffset = Vector2.zero;
+            // TextFormat.CopyFrom intentionally copies only the base typography.
+            // Copy the native outline/underlay members as well; do not force
+            // stroke to zero or draw a second, coarse outline at runtime.
+            TextFormat sourceFormat = source.textFormat;
+            TextFormat targetFormat = caption.textFormat;
+            targetFormat.CopyFrom(sourceFormat);
+            string[] nativeEffects = {
+                "faceDilate", "outline", "outlineColor", "outlineSoftness",
+                "underlaySoftness", "shadowColor", "shadowOffset",
+                "specialStyle", "gradientColor"
+            };
+            foreach (string member in nativeEffects)
+                CopyFormatMember(sourceFormat, targetFormat, member);
+            caption.textFormat = targetFormat;
+            caption.stroke = source.stroke;
+        }
+
+        private static void CopyFormatMember(TextFormat source, TextFormat target, string name) {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            Type type = source.GetType();
+            FieldInfo? field = type.GetField(name, flags);
+            if (field != null) {
+                field.SetValue(target, field.GetValue(source));
+                return;
+            }
+            PropertyInfo? property = type.GetProperty(name, flags);
+            if (property != null && property.CanRead && property.CanWrite)
+                property.SetValue(target, property.GetValue(source, null), null);
         }
 
         private void HideCaption() {
