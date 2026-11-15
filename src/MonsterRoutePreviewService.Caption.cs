@@ -56,11 +56,10 @@ namespace MonsterRoutePreview {
                 TextFormat native = _caption.textFormat;
                 native.CopyFrom(anchor.textFormat);
                 _caption.textFormat = native;
-                // TextFormat.CopyFrom does not copy FairyGUI's outline effect.
-                // Some native counters render the black edge via a special
-                // font material and report stroke == 0: provide an explicit
-                // outline to avoid thin, default-looking overlay numerals.
-                ApplyNativeCounterOutline(_caption, anchor);
+                // Preserve the exact authored font name: the game's outlined
+                // numbers are hand-painted bitmap glyphs, not a runtime stroke.
+                // A substitute outline changes their shape and glyph coverage.
+                CopyNativeTypography(_caption, anchor);
                 _captionLayer.AddChild(_caption);
             }
 
@@ -86,15 +85,17 @@ namespace MonsterRoutePreview {
                 ? _restingHeight : Math.Max(1f, anchor.height);
             _caption!.SetSize(root.width, height);
             _caption.SetXY(0f, local.y - height * .5f);
-            ApplyNativeCounterOutline(_caption, anchor);
+            CopyNativeTypography(_caption, anchor);
             _caption.text = initial.ToString(CultureInfo.InvariantCulture);
             _caption.visible = true;
         }
 
-        private static void ApplyNativeCounterOutline(GTextField caption, GTextField source) {
-            caption.stroke = source.stroke > .01f ? source.stroke : 1.8f;
-            caption.strokeColor = source.stroke > .01f && source.strokeColor.a > 0f
-                ? source.strokeColor : new Color(.08f, .07f, .10f, 1f);
+        private static void CopyNativeTypography(GTextField caption, GTextField source) {
+            TextFormat format = caption.textFormat;
+            format.CopyFrom(source.textFormat);
+            caption.textFormat = format; // exact same packaged custom font
+            caption.stroke = source.stroke; // never invent an outline
+            caption.strokeColor = source.strokeColor;
             caption.shadowOffset = source.shadowOffset;
         }
 
