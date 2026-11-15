@@ -93,10 +93,12 @@ namespace MonsterRoutePreview {
         private static void CopyNativeTypography(GTextField caption, GTextField source) {
             TextFormat format = caption.textFormat;
             format.CopyFrom(source.textFormat);
-            caption.textFormat = format; // exact same packaged custom font
-            caption.stroke = source.stroke; // never invent an outline
-            caption.strokeColor = source.strokeColor;
-            caption.shadowOffset = source.shadowOffset;
+            // Reuse the glyph font referenced by the game's original counter,
+            // including the packaged hand-painted bitmap font. FairyGUI's
+            // runtime stroke/shadow would paint a second, coarse black rim.
+            caption.textFormat = format;
+            caption.stroke = 0;
+            caption.shadowOffset = Vector2.zero;
         }
 
         private void HideCaption() {
