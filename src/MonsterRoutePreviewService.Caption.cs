@@ -56,9 +56,11 @@ namespace MonsterRoutePreview {
                 TextFormat native = _caption.textFormat;
                 native.CopyFrom(anchor.textFormat);
                 _caption.textFormat = native;
-                _caption.stroke = anchor.stroke;
-                _caption.strokeColor = anchor.strokeColor;
-                _caption.shadowOffset = anchor.shadowOffset;
+                // TextFormat.CopyFrom does not copy FairyGUI's outline effect.
+                // Some native counters render the black edge via a special
+                // font material and report stroke == 0: provide an explicit
+                // outline to avoid thin, default-looking overlay numerals.
+                ApplyNativeCounterOutline(_caption, anchor);
                 _captionLayer.AddChild(_caption);
             }
 
@@ -84,10 +86,16 @@ namespace MonsterRoutePreview {
                 ? _restingHeight : Math.Max(1f, anchor.height);
             _caption!.SetSize(root.width, height);
             _caption.SetXY(0f, local.y - height * .5f);
-            _caption.stroke = anchor.stroke;
-            _caption.strokeColor = anchor.strokeColor;
+            ApplyNativeCounterOutline(_caption, anchor);
             _caption.text = initial.ToString(CultureInfo.InvariantCulture);
             _caption.visible = true;
+        }
+
+        private static void ApplyNativeCounterOutline(GTextField caption, GTextField source) {
+            caption.stroke = source.stroke > .01f ? source.stroke : 1.8f;
+            caption.strokeColor = source.stroke > .01f && source.strokeColor.a > 0f
+                ? source.strokeColor : new Color(.08f, .07f, .10f, 1f);
+            caption.shadowOffset = source.shadowOffset;
         }
 
         private void HideCaption() {
