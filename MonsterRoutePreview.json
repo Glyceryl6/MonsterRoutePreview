@@ -1,7 +1,7 @@
 {
   "id": "MonsterRoutePreview",
   "name": "怪物路线显示",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "author": "Glyceryl6",
   "description": "显示怪物移动步数与行走路线，沿用原版步数文字的字体和完整描边效果。",
   "permissions": 1,
